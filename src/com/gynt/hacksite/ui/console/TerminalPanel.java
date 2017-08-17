@@ -1,8 +1,9 @@
 package com.gynt.hacksite.ui.console;
 
-import javax.swing.JPanel;
-import java.awt.Color;
 import java.awt.BorderLayout;
+import java.awt.Color;
+
+import javax.swing.JPanel;
 
 public class TerminalPanel extends JPanel {
 	public TerminalPanel() {
