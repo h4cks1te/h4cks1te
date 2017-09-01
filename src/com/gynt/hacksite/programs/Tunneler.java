@@ -12,8 +12,15 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
 import com.gynt.hacksite.events.EventListener;
+import com.gynt.hacksite.events.InputEvent;
+import com.gynt.hacksite.events.InputType;
+import com.gynt.hacksite.ui.console.Terminal;
 
-public class Tunneler implements EventListener {
+public class Tunneler extends Program {
+
+	public Tunneler(Terminal t, boolean newscreen) {
+		super(t, newscreen);
+	}
 
 	@Parameters(separators = "=", commandDescription = "Record changes to the repository")
 	public class AddArgs {
@@ -87,20 +94,54 @@ public class Tunneler implements EventListener {
 		return result;
 	}
 
-	private Pattern displayable = Pattern.compile("[A-Za-z0-9 ~!@#$%^&*()_+{}:\"|<>?`-=[];\'\\,./]");
+	private Pattern typables = Pattern.compile("[ -~]");
+	private String newtext;
+	private String priortext;
 
 	@Override
-	public void onUserInput(KeyEvent k) {
-		if (displayable.matcher(k.getKeyChar() + "").matches()) {
-			tracker += k.getKeyChar();
+	public void receive(InputEvent k) {
+		if (hasLower()) {
+			toLower(k);
+			return;
 		}
-		if (k.getKeyCode() == KeyEvent.VK_ENTER) {
-			onUserCommand(tracker);
+		if (isEscape(k)) {
+			loseFocus();
 		}
+		KeyEvent e = k.getKeyEvent();
+		if (k.getType() == InputType.TYPED) {
+			if (typables.matcher(e.getKeyChar() + "").matches()) {
+				newtext += e.getKeyChar();
+				System.out.println("typed: " + e.getKeyChar());
+				display(priortext + newtext);
+			}
+		} else if (k.getType() == InputType.PRESSED) {
+			if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+				if (getPanel().getEditor().getCaretPosition() < priortext.length() + 1) {
+					e.consume();
+				}
+			}
+			if (e.getKeyCode() == KeyEvent.VK_DELETE) {
+				e.consume();
+			}
+			if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+				e.consume();
+				onUserCommand();
+				newtext = "";
+			}
+			if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+				if (newtext.length() > 0) {
+					System.out.println("backspaced: " + newtext.substring(0, newtext.length() - 1));
+					newtext = newtext.substring(0, newtext.length() - 1);
+					display(priortext + newtext);
+				}
+				e.consume();
+			}
+		}
+		
 	}
 
-	public void onUserCommand(String s) {
-		if (s.equals("ENTER")) {
+	public void onUserCommand() {
+
 			MainArgs main = new MainArgs();
 			AddArgs add = new AddArgs();
 			ListArgs list = new ListArgs();
@@ -120,7 +161,17 @@ public class Tunneler implements EventListener {
 				throw new RuntimeException();
 			}
 			}
-		}
+		
+	}
+
+	public void commit(String s) {
+		priortext += s;
+		display(priortext);
+	}
+	
+	public void display(String s) {
+		getPanel().getEditor().setText(s);
+		getPanel().getEditor().setCaretPosition(getPanel().getEditor().getText().length());
 	}
 
 	private void processList(ListArgs list) {
